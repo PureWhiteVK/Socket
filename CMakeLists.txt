@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.25)
 project(io-multiplexing)
 
+if(NOT LINUX)
+  message(FATAL "project ${PROJECT_NAME} must run on LINUX!")
+endif()
+
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+
 include(FetchContent)
 
 FetchContent_Declare(
@@ -25,13 +31,45 @@ set(ARGPARSE_BUILD_SAMPLES FALSE)
 set(ARGPARSE_BUILD_TESTS FALSE)
 FetchContent_MakeAvailable(argparse)
 
+FetchContent_Declare(
+  antlr4_jar
+  URL           https://www.antlr.org/download/antlr-4.13.0-complete.jar
+  DOWNLOAD_DIR  ${PROJECT_SOURCE_DIR}/jar
+  DOWNLOAD_NAME antlr4-complete.jar
+  DOWNLOAD_NO_EXTRACT TRUE
+)
+FetchContent_Populate(antlr4_jar)
+set(ANTLR_EXECUTABLE ${PROJECT_SOURCE_DIR}/jar/antlr4-complete.jar)
+
+include(add-antlr4-parser)
+include(add-antlr4)
+
+add_antlr4(4.13.0 STATIC)
+
+add_antlr4_parser(
+  CalculatorParser src/Calculator.g4 
+  LEXER PARSER 
+  NAMESPACE parser
+)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
-add_library(util STATIC util.cpp)
-target_include_directories(util PUBLIC ${PROJECT_SOURCE_DIR})
+add_library(calculator_parser STATIC 
+  ${ANTLR_CalculatorParser_CXX_OUTPUTS})
+target_include_directories(calculator_parser PUBLIC ${ANTLR_CalculatorParser_OUTPUT_DIR})
+target_link_libraries(calculator_parser PUBLIC antlr4::antlr4_static)
+add_library(parser::calculator_parser ALIAS calculator_parser)
+
+add_library(util STATIC src/util.cpp)
+target_include_directories(util PUBLIC src)
 target_link_libraries(util PUBLIC fmt::fmt argparse::argparse)
 add_library(util::util ALIAS util)
 
-add_executable(test_linger test_linger.cpp)
-target_link_libraries(test_linger PRIVATE util::util fmt::fmt argparse::argparse)
+add_executable(test_linger src/test_linger.cpp)
+target_link_libraries(test_linger PRIVATE util::util)
+
+add_executable(test_sticky_packet src/test_sticky_packet.cpp)
+target_link_libraries(test_sticky_packet PRIVATE util::util parser::calculator_parser)
+
+add_subdirectory(test)
