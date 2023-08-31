@@ -15,14 +15,14 @@ std::string to_human_readable(size_t size) {
     i--;
   }
   size_t scalar = size / base[i];
-  size_t fraction = static_cast<size_t>(std::ceil(
-      static_cast<float>((size - scalar * base[i])) / base[i] * 1000));
+  size_t fraction = static_cast<size_t>(
+      ::round(static_cast<float>((size - scalar * base[i])) / base[i] * 1000));
   return fraction == 0 ? fmt::format("{} {}", scalar, name[i], name[i])
                        : fmt::format("{}.{} {}", scalar, fraction, name[i]);
 }
 
 void set_addr(struct sockaddr_in &addr, std::string_view ip) {
-  int ret = inet_pton(addr.sin_family, ip.data(), &addr.sin_addr);
+  int ret = ::inet_pton(addr.sin_family, ip.data(), &addr.sin_addr);
   if (ret == 0) {
     THROW("{} is not a valid network address for address family {}", ip,
           addr.sin_family == AF_INET ? "IPv4" : "IPv6");
@@ -32,6 +32,7 @@ void set_addr(struct sockaddr_in &addr, std::string_view ip) {
 }
 
 std::string get_errno_string() {
+  // return strerror(errno);
   struct errno_info {
     std::string_view name;
     std::string_view description;

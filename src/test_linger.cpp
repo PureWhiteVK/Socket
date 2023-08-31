@@ -107,34 +107,39 @@ void server(std::string_view server_ip, uint16_t server_port) {
   }
 
   while (true) {
-    Connection::Ref conn = s.accept();
-    // handle connection
-    {
-      static std::array<char, 32 * 1024> read_buffer;
-      ssize_t read_size;
-      size_t total_bytes = 0;
-      fs::path output_path =
-          fmt::format("output_{}.zip", static_cast<uint32_t>(conn->handle()));
-      std::ofstream output_file(output_path, std::ios::out | std::ios::binary);
-      while (true) {
-        read_size =
-            read(conn->handle(), read_buffer.data(), read_buffer.size());
-        if (read_size == -1) {
-          INFO("{}", get_errno_string());
-          break;
-        } else if (read_size == 0) {
-          INFO("eof");
-          break;
+    try {
+      Session sess = s.accept();
+      // handle connection
+      {
+        static std::array<char, 32 * 1024> read_buffer;
+        ssize_t read_size;
+        size_t total_bytes = 0;
+        fs::path output_path =
+            fmt::format("output_{}.zip", static_cast<uint32_t>(sess.handle()));
+        std::ofstream output_file(output_path,
+                                  std::ios::out | std::ios::binary);
+        while (true) {
+          read_size =
+              read(sess.handle(), read_buffer.data(), read_buffer.size());
+          if (read_size == -1) {
+            INFO("{}", get_errno_string());
+            break;
+          } else if (read_size == 0) {
+            INFO("eof");
+            break;
+          }
+          output_file.write(read_buffer.data(), read_size);
+          total_bytes += read_size;
         }
-        output_file.write(read_buffer.data(), read_size);
-        total_bytes += read_size;
+        INFO("recv: {} in total", to_human_readable(total_bytes));
+        // 必须是接受缓冲和发送缓冲都为空的时候才行，否则就会 RST
+        output_file.close();
+        INFO("md5 of {} is {}", output_path.filename().string(),
+             get_md5(output_path));
+        close(sess.handle());
       }
-      INFO("recv: {} in total", to_human_readable(total_bytes));
-      // 必须是接受缓冲和发送缓冲都为空的时候才行，否则就会 RST
-      output_file.close();
-      INFO("md5 of {} is {}", output_path.filename().string(),
-           get_md5(output_path));
-      close(conn->handle());
+    } catch (std::runtime_error &err) {
+      INFO(err.what());
     }
   }
 }

@@ -7,51 +7,11 @@
 #include <chrono>
 #include <filesystem>
 
-void client(std::string_view server_ip, uint16_t server_port) {
-  Client c{server_ip, server_port};
-  c.connect();
-  // 如果设置了 linger ？
-  {
-    struct linger linger_opt {};
-    linger_opt.l_linger = 0;
-    linger_opt.l_onoff = 0;
-    int ret = setsockopt(c.handle(), SOL_SOCKET, SO_LINGER, &linger_opt,
-                         sizeof(linger_opt));
-    if (ret == -1) {
-      THROW("failed to set SO_LINGER option for socket.\n{}",
-            get_errno_string());
-    }
-  }
-
-  Requester req{c.handle()};
-
-  int count = 5;
-  try {
-    while (count-- > 0) {
-      // 一次发10个请求
-      for (int i = 0; i < 10; i++) {
-        req.do_request();
-      }
-      req.do_read();
-    }
-    // read all data until eof!
-    while (req.has_requests()) {
-      req.do_read();
-    }
-    int ret = shutdown(c.handle(), SHUT_RDWR);
-    if (ret == -1) {
-      THROW("failed to shutdown connection.\n{}", get_errno_string());
-    }
-  } catch (std::runtime_error &err) {
-    INFO("error: {}", err.what());
-  }
-  close(c.handle());
-}
-
 void server(std::string_view server_ip, uint16_t server_port,
             int backlog_size) {
   Server s{server_ip, server_port};
   s.bind().listen(backlog_size);
+  fmt::println("start server at: {}", s.local_endpoint());
   {
     int reuseaddr = 1;
     int ret = setsockopt(s.handle(), SOL_SOCKET, SO_REUSEADDR, &reuseaddr,
@@ -77,12 +37,14 @@ void server(std::string_view server_ip, uint16_t server_port,
       // handle connection
       try {
         Responser resp{sess.handle()};
+        fmt::println("accept connection: {}", sess.remote_endpoint());
         while (true) {
           // read from client
           resp.do_read();
+          resp.do_write();
         }
       } catch (std::runtime_error &err) {
-        INFO("error: {}", err.what());
+        fmt::println("error: {}", err.what());
         close(sess.handle());
       }
     } catch (std::runtime_error &err) {
@@ -95,10 +57,6 @@ namespace fs = std::filesystem;
 
 int main(int argc, char **argv) {
   argparse::ArgumentParser parser(fs::path(argv[0]).filename());
-  parser.add_argument("--client", "-c")
-      .implicit_value(true)
-      .default_value<bool>(false)
-      .help("run as client");
   parser.add_argument("--server-ip", "-s")
       .default_value<std::string>("127.0.0.1");
   parser.add_argument("--server-port", "-p")
@@ -118,11 +76,7 @@ int main(int argc, char **argv) {
   try {
     std::string server_ip = parser.get<std::string>("--server-ip");
     uint16_t server_port = parser.get<uint16_t>("--server-port");
-    if (parser.get<bool>("--client")) {
-      client(server_ip, server_port);
-    } else {
-      server(server_ip, server_port, parser.get<int>("--backlog-size"));
-    }
+    server(server_ip, server_port, parser.get<int>("--backlog-size"));
   } catch (std::exception &e) {
     fmt::println("{}", e.what());
     exit(-1);

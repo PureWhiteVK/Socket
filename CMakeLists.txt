@@ -61,15 +61,54 @@ target_include_directories(calculator_parser PUBLIC ${ANTLR_CalculatorParser_OUT
 target_link_libraries(calculator_parser PUBLIC antlr4::antlr4_static)
 add_library(parser::calculator_parser ALIAS calculator_parser)
 
-add_library(util STATIC src/util.cpp)
-target_include_directories(util PUBLIC src)
-target_link_libraries(util PUBLIC fmt::fmt argparse::argparse)
-add_library(util::util ALIAS util)
-
 add_executable(test_linger src/test_linger.cpp)
-target_link_libraries(test_linger PRIVATE util::util)
+target_sources(test_linger PRIVATE
+  src/util.cpp
+)
+target_link_libraries(test_linger PRIVATE 
+  fmt::fmt 
+  argparse::argparse 
+)
+target_include_directories(test_linger PRIVATE src)
+target_compile_definitions(test_linger PRIVATE TRACING)
 
 add_executable(test_sticky_packet src/test_sticky_packet.cpp)
-target_link_libraries(test_sticky_packet PRIVATE util::util parser::calculator_parser)
+target_sources(test_sticky_packet PRIVATE
+  src/util.cpp
+  src/sync_calculator/responser.cpp 
+  src/sync_calculator/requester.cpp
+)
+target_include_directories(test_sticky_packet PRIVATE 
+  src
+  src/sync_calculator
+)
+target_link_libraries(test_sticky_packet PRIVATE 
+  fmt::fmt 
+  argparse::argparse 
+  parser::calculator_parser
+)
+target_compile_definitions(test_sticky_packet PRIVATE TRACING)
+
+add_executable(benchmark_calculator src/benchmark.cpp)
+target_sources(benchmark_calculator PRIVATE
+  src/util.cpp
+  src/sync_calculator/requester.cpp
+)
+target_include_directories(benchmark_calculator PRIVATE 
+  src
+  src/sync_calculator
+)
+target_link_libraries(benchmark_calculator PRIVATE 
+  fmt::fmt 
+  argparse::argparse 
+  parser::calculator_parser
+)
+target_compile_definitions(benchmark_calculator PRIVATE TRACING)
+
+add_executable(tcp_forward src/tcp_forward.cpp)
+
+add_executable(test_OOB src/test_OOB.cpp)
+
+add_subdirectory(src/server_type)
 
 add_subdirectory(test)
