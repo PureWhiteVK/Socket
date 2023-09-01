@@ -18,45 +18,49 @@ function(add_antlr4_parser TARGET_NAME INPUT_FILE)
     set(ANTLR_${TARGET_NAME}_OUTPUT_DIR ${ANTLR_TARGET_OUTPUT_DIRECTORY})
   else()
     set(ANTLR_${TARGET_NAME}_OUTPUT_DIR
-        ${CMAKE_CURRENT_BINARY_DIR}/antlr4cpp_generated_src/${ANTLR_INPUT}/src)
+        ${CMAKE_CURRENT_BINARY_DIR}/antlr4cpp_generated_src/${ANTLR_INPUT})
   endif()
+  # https://github.com/antlr/antlr4/issues/3138
+  # FIXME: due to antlr4's inconsistense behavior under linux and windows (windows output directory is output_directory, while linux is output_directory / src)
+  # we should use cmake to find the actual output directory and move it to output_directory
+  set(SRC_OUTPUT_DIR ${ANTLR_${TARGET_NAME}_OUTPUT_DIR}/src)
 
   unset(ANTLR_${TARGET_NAME}_CXX_OUTPUTS)
 
   if((ANTLR_TARGET_LEXER AND NOT ANTLR_TARGET_PARSER) OR
       (ANTLR_TARGET_PARSER AND NOT ANTLR_TARGET_LEXER))
     list(APPEND ANTLR_${TARGET_NAME}_CXX_OUTPUTS
-          ${ANTLR_${TARGET_NAME}_OUTPUT_DIR}/${ANTLR_INPUT}.h
-          ${ANTLR_${TARGET_NAME}_OUTPUT_DIR}/${ANTLR_INPUT}.cpp)
+          ${SRC_OUTPUT_DIR}/${ANTLR_INPUT}.h
+          ${SRC_OUTPUT_DIR}/${ANTLR_INPUT}.cpp)
     set(ANTLR_${TARGET_NAME}_OUTPUTS
-        ${ANTLR_${TARGET_NAME}_OUTPUT_DIR}/${ANTLR_INPUT}.interp
-        ${ANTLR_${TARGET_NAME}_OUTPUT_DIR}/${ANTLR_INPUT}.tokens)
+        ${SRC_OUTPUT_DIR}/${ANTLR_INPUT}.interp
+        ${SRC_OUTPUT_DIR}/${ANTLR_INPUT}.tokens)
   else()
     list(APPEND ANTLR_${TARGET_NAME}_CXX_OUTPUTS
-          ${ANTLR_${TARGET_NAME}_OUTPUT_DIR}/${ANTLR_INPUT}Lexer.h
-          ${ANTLR_${TARGET_NAME}_OUTPUT_DIR}/${ANTLR_INPUT}Lexer.cpp
-          ${ANTLR_${TARGET_NAME}_OUTPUT_DIR}/${ANTLR_INPUT}Parser.h
-          ${ANTLR_${TARGET_NAME}_OUTPUT_DIR}/${ANTLR_INPUT}Parser.cpp)
+          ${SRC_OUTPUT_DIR}/${ANTLR_INPUT}Lexer.h
+          ${SRC_OUTPUT_DIR}/${ANTLR_INPUT}Lexer.cpp
+          ${SRC_OUTPUT_DIR}/${ANTLR_INPUT}Parser.h
+          ${SRC_OUTPUT_DIR}/${ANTLR_INPUT}Parser.cpp)
     list(APPEND ANTLR_${TARGET_NAME}_OUTPUTS
-          ${ANTLR_${TARGET_NAME}_OUTPUT_DIR}/${ANTLR_INPUT}Lexer.interp
-          ${ANTLR_${TARGET_NAME}_OUTPUT_DIR}/${ANTLR_INPUT}Lexer.tokens)
+          ${SRC_OUTPUT_DIR}/${ANTLR_INPUT}Lexer.interp
+          ${SRC_OUTPUT_DIR}/${ANTLR_INPUT}Lexer.tokens)
   endif()
 
   if(ANTLR_TARGET_LISTENER)
     list(APPEND ANTLR_${TARGET_NAME}_CXX_OUTPUTS
-          ${ANTLR_${TARGET_NAME}_OUTPUT_DIR}/${ANTLR_INPUT}BaseListener.h
-          ${ANTLR_${TARGET_NAME}_OUTPUT_DIR}/${ANTLR_INPUT}BaseListener.cpp
-          ${ANTLR_${TARGET_NAME}_OUTPUT_DIR}/${ANTLR_INPUT}Listener.h
-          ${ANTLR_${TARGET_NAME}_OUTPUT_DIR}/${ANTLR_INPUT}Listener.cpp)
+          ${SRC_OUTPUT_DIR}/${ANTLR_INPUT}BaseListener.h
+          ${SRC_OUTPUT_DIR}/${ANTLR_INPUT}BaseListener.cpp
+          ${SRC_OUTPUT_DIR}/${ANTLR_INPUT}Listener.h
+          ${SRC_OUTPUT_DIR}/${ANTLR_INPUT}Listener.cpp)
     list(APPEND ANTLR_TARGET_GENERATE_FLAGS -listener)
   endif()
 
   if(ANTLR_TARGET_VISITOR)
     list(APPEND ANTLR_${TARGET_NAME}_CXX_OUTPUTS
-          ${ANTLR_${TARGET_NAME}_OUTPUT_DIR}/${ANTLR_INPUT}BaseVisitor.h
-          ${ANTLR_${TARGET_NAME}_OUTPUT_DIR}/${ANTLR_INPUT}BaseVisitor.cpp
-          ${ANTLR_${TARGET_NAME}_OUTPUT_DIR}/${ANTLR_INPUT}Visitor.h
-          ${ANTLR_${TARGET_NAME}_OUTPUT_DIR}/${ANTLR_INPUT}Visitor.cpp)
+          ${SRC_OUTPUT_DIR}/${ANTLR_INPUT}BaseVisitor.h
+          ${SRC_OUTPUT_DIR}/${ANTLR_INPUT}BaseVisitor.cpp
+          ${SRC_OUTPUT_DIR}/${ANTLR_INPUT}Visitor.h
+          ${SRC_OUTPUT_DIR}/${ANTLR_INPUT}Visitor.cpp)
     list(APPEND ANTLR_TARGET_GENERATE_FLAGS -visitor)
   endif()
 
@@ -75,6 +79,7 @@ function(add_antlr4_parser TARGET_NAME INPUT_FILE)
               ${ANTLR_TARGET_GENERATE_FLAGS}
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
+  set(ANTLR_${TARGET_NAME}_OUTPUT_DIR ${SRC_OUTPUT_DIR})
   cmake_policy(SET CMP0140 NEW)
   return(PROPAGATE 
     ANTLR_${TARGET_NAME}_OUTPUT_DIR 
