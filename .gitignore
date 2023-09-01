@@ -2,5 +2,4 @@ build/**
 .vscode
 .cache
 .antlr
-jar
 *.zip

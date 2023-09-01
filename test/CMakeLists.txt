@@ -1,4 +1,6 @@
-add_executable(test_util test_util.cpp ${PROJECT_SOURCE_DIR}/src/util.cpp)
-target_include_directories(test_util PRIVATE ${PROJECT_SOURCE_DIR}/src)
-add_compile_definitions(test_util PRIVATE TRACING)
-target_link_libraries(test_util PRIVATE fmt::fmt argparse::argparse)
+add_run_target(test_util test_util.cpp)
+add_run_target(test_linger test_linger.cpp)
+add_run_target(test_sticky_packet test_sticky_packet.cpp)
+
+add_executable(tcp_forward tcp_forward.cpp)
+add_executable(test_OOB test_OOB.cpp)

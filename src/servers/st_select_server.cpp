@@ -1,6 +1,5 @@
-#include "requester.hpp"
-#include "responser.hpp"
-#include "util.hpp"
+#include "utils/server.hpp"
+#include "sync_calculator/responser.hpp"
 
 #include <sys/select.h>
 #include <unistd.h>
@@ -52,8 +51,11 @@ void server(std::string_view server_ip, uint16_t server_port,
       memcpy(&read_fds, &original_read_fds, sizeof(original_read_fds));
       memcpy(&write_fds, &original_write_fds, sizeof(original_write_fds));
       // build fd_set for select
-      int n_ready_fds =
+      int n_ready_fds;
+      TIMER_BEGIN("select()")
+      n_ready_fds =
           select(max_fd_number + 1, &read_fds, &write_fds, nullptr, nullptr);
+      TIMER_END()
       // The return value may be zero if the timeout expired
       // before any file descriptors became ready.
       if (n_ready_fds < 1) {

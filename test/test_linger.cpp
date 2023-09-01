@@ -1,4 +1,6 @@
-#include "util.hpp"
+#include "utils/common.hpp"
+#include "utils/server.hpp"
+#include "utils/client.hpp"
 
 #include <assert.h>
 #include <errno.h>

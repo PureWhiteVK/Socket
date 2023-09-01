@@ -1,6 +1,8 @@
-#include "requester.hpp"
-#include "responser.hpp"
-#include "util.hpp"
+#include "sync_calculator/requester.hpp"
+#include "sync_calculator/responser.hpp"
+#include "utils/client.hpp"
+#include "utils/common.hpp"
+#include "utils/server.hpp"
 
 #include <unistd.h>
 
@@ -31,6 +33,7 @@ void client(std::string_view server_ip, uint16_t server_port) {
       // 一次发10个请求
       for (int i = 0; i < 10; i++) {
         req.do_request();
+        req.do_write();
       }
       req.do_read();
     }
@@ -80,6 +83,7 @@ void server(std::string_view server_ip, uint16_t server_port,
         while (true) {
           // read from client
           resp.do_read();
+          resp.do_write();
         }
       } catch (std::runtime_error &err) {
         INFO("error: {}", err.what());

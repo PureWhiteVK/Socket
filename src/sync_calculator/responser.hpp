@@ -1,6 +1,6 @@
 #pragma once
 
-#include "util.hpp"
+#include "utils/common.hpp"
 
 #include <queue>
 
@@ -19,7 +19,9 @@ private:
   int sock_fd{};
   std::array<char, 1024> send_buffer{};
   std::array<char, 1024> recv_buffer{};
-  size_t bytes_written = 0;
-  size_t bytes_available = recv_buffer.size();
   std::queue<int> responses{};
+  size_t send_buffer_bytes_written = 0;
+  size_t send_buffer_bytes_available = send_buffer.size();
+  size_t recv_buffer_bytes_written = 0;
+  size_t recv_buffer_bytes_available = recv_buffer.size();
 };

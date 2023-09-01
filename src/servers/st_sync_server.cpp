@@ -1,6 +1,5 @@
-#include "requester.hpp"
-#include "responser.hpp"
-#include "util.hpp"
+#include "utils/server.hpp"
+#include "sync_calculator/responser.hpp"
 
 #include <unistd.h>
 

@@ -1,5 +1,6 @@
-#include "requester.hpp"
-#include "util.hpp"
+#include "sync_calculator/requester.hpp"
+#include "utils/client.hpp"
+#include "utils/common.hpp"
 
 #include <sys/select.h>
 #include <unistd.h>
@@ -63,14 +64,11 @@ void workload(std::string_view server_ip, uint16_t server_port, int n_clients) {
       memcpy(&read_fds, &original_read_fds, sizeof(original_read_fds));
       memcpy(&write_fds, &original_write_fds, sizeof(original_write_fds));
       // build fd_set for select
-      ch::steady_clock::time_point start = ch::steady_clock::now();
-      int n_ready_fds =
+      int n_ready_fds;
+      TIMER_BEGIN("select()")
+      n_ready_fds =
           select(max_fd_number + 1, &read_fds, &write_fds, nullptr, nullptr);
-      ch::steady_clock::time_point end = ch::steady_clock::now();
-      INFO("select() costs: {:.3f}ms",
-           static_cast<float>(
-               ch::duration_cast<ch::microseconds>(end - start).count()) /
-               1000.0f);
+      TIMER_END()
       // The return value may be zero if the timeout expired
       // before any file descriptors became ready.
       if (n_ready_fds < 1) {
@@ -113,29 +111,26 @@ void workload(std::string_view server_ip, uint16_t server_port, int n_clients) {
               ->first;
       memcpy(&read_fds, &original_read_fds, sizeof(original_read_fds));
       // build fd_set for select
-      ch::steady_clock::time_point start = ch::steady_clock::now();
-      int n_ready_fds =
-          select(max_fd_number + 1, &read_fds, nullptr, nullptr, nullptr);
-      ch::steady_clock::time_point end = ch::steady_clock::now();
-      INFO("select() costs: {:.3f}ms",
-           static_cast<float>(
-               ch::duration_cast<ch::microseconds>(end - start).count()) /
-               1000.0f);
+      // why select will block here, means no state change ?
+      // TIMER_BEGIN
+      // int n_ready_fds =
+      //     select(max_fd_number + 1, &read_fds, nullptr, nullptr, nullptr);
+      // TIMER_END
       // The return value may be zero if the timeout expired
       // before any file descriptors became ready.
-      if (n_ready_fds < 1) {
-        THROW("select error: {}", get_errno_string());
-      }
+      // if (n_ready_fds < 1) {
+      //   THROW("select error: {}", get_errno_string());
+      // }
       for (auto sess_iter = requesters.begin();
            sess_iter != requesters.end();) {
         auto &[sess, resp] = *sess_iter;
         try {
           INFO("n requests: {}", requesters[sess].n_requests());
           if (requesters[sess].has_requests()) {
-            if (FD_ISSET(sess, &read_fds)) {
-              requesters[sess].do_read();
-              n_total_requests++;
-            }
+            // if (FD_ISSET(sess, &read_fds)) {
+            requesters[sess].do_read();
+            n_total_requests++;
+            // }
             sess_iter++;
           } else {
             shutdown(sess, SHUT_RDWR);
