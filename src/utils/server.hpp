@@ -1,3 +1,5 @@
+#pragma once
+
 #include "common.hpp"
 #include "exceptions.hpp"
 
@@ -8,23 +10,20 @@ class Session {
 public:
   Session() = default;
   int handle() const { return fd_; }
-  const struct sockaddr_in &remote_endpoint() const { return remote_endpoint_; }
-  const struct sockaddr_in &local_endpoint() const { return local_endpoint_; }
+  const struct sockaddr_in &remote_endpoint() { return remote_endpoint_; }
+  const struct sockaddr_in &local_endpoint() { return local_endpoint_; }
 
   friend class Server;
   friend struct std::hash<Session>;
-  friend bool operator==(const Session &a, const Session &b) {
-    return a.fd_ == b.fd_ && a.remote_endpoint_ == b.remote_endpoint_ &&
-           a.local_endpoint_ == b.local_endpoint_;
-  }
-  friend bool operator<(const Session &a, const Session &b) {
-    return a.fd_ < b.fd_;
+  bool operator==(const Session &b) const noexcept {
+    return fd_ == b.fd_ && remote_endpoint_ == b.remote_endpoint_ &&
+           local_endpoint_ == b.local_endpoint_;
   }
 
-private:
+protected:
   int fd_{};
-  struct sockaddr_in remote_endpoint_;
-  struct sockaddr_in local_endpoint_;
+  struct sockaddr_in remote_endpoint_ {};
+  struct sockaddr_in local_endpoint_ {};
 };
 
 namespace std {

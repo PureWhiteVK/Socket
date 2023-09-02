@@ -1,4 +1,5 @@
 #include "server.hpp"
+#include "utils/common.hpp"
 
 void Server::create_socket() {
   CHECK(fd_ = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP));
@@ -32,8 +33,15 @@ Server &Server::listen(int backlog_size) {
 Session Server::accept() {
   Session sess = Session();
   socklen_t size = sizeof(sess.remote_endpoint_);
-  CHECK(sess.fd_ = ::accept(fd_, SOCKADDR(sess.remote_endpoint_), &size));
+  sess.fd_ = ::accept(fd_, SOCKADDR(sess.remote_endpoint_), &size);
+  if (sess.fd_ == -1) {
+    int _errno = errno;
+    if (would_block(_errno) || _errno == EINPROGRESS) {
+      throw temporarily_unavailable_error();
+    }
+    THROW(get_errno_string(_errno));
+  }
   ::memcpy(&sess.local_endpoint_, &local_endpoint_, sizeof(local_endpoint_));
-  INFO("accept connection: {}", sess.remote_endpoint_);
+  DEBUG("accept connection from {}", sess.remote_endpoint_);
   return sess;
 }

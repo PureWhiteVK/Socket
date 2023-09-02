@@ -33,7 +33,7 @@ function(add_run_target TARGET_NAME SOURCE)
   )
 
   set(LIBRARIES 
-    fmt::fmt
+    spdlog::spdlog
     argparse::argparse
     parser::calculator_parser
   )

@@ -1,7 +1,12 @@
-#include "utils/server.hpp"
 #include "sync_calculator/responser.hpp"
+#include "utils/common.hpp"
+#include "utils/exceptions.hpp"
+#include "utils/server.hpp"
 
+#include <exception>
+#include <signal.h>
 #include <sys/select.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 #include <chrono>
@@ -12,28 +17,21 @@ void server(std::string_view server_ip, uint16_t server_port,
             int backlog_size) {
   Server s{server_ip, server_port};
   s.bind().listen(backlog_size);
-  fmt::println("start server at: {}", s.local_endpoint());
+  // set_fd_status_flag(s.handle(), O_NONBLOCK);
   {
     int reuseaddr = 1;
-    int ret = setsockopt(s.handle(), SOL_SOCKET, SO_REUSEADDR, &reuseaddr,
-                         sizeof(reuseaddr));
-    if (ret == -1) {
-      THROW("failed to set SO_REUSEADDR option for server socket:\n{}",
-            get_errno_string());
-    }
+    CHECK(setsockopt(s.handle(), SOL_SOCKET, SO_REUSEADDR, &reuseaddr,
+                     sizeof(reuseaddr)));
   }
   {
     int reuseport = 1;
-    int ret = setsockopt(s.handle(), SOL_SOCKET, SO_REUSEPORT, &reuseport,
-                         sizeof(reuseport));
-    if (ret == -1) {
-      THROW("failed to set SO_REUSEPORT option for server socket:\n{}",
-            get_errno_string());
-    }
+    CHECK(setsockopt(s.handle(), SOL_SOCKET, SO_REUSEPORT, &reuseport,
+                     sizeof(reuseport)));
   }
 
   fd_set original_read_fds, original_write_fds, read_fds, write_fds;
-  int max_fd_number = s.handle();
+  int max_fd_number = -1;
+  int prev_max_fd_number = max_fd_number;
 
   FD_ZERO(&original_read_fds);
   FD_ZERO(&original_write_fds);
@@ -48,35 +46,45 @@ void server(std::string_view server_ip, uint16_t server_port,
 
   while (true) {
     try {
+      if (!responsers.empty()) {
+        max_fd_number =
+            std::max_element(
+                responsers.begin(), responsers.end(),
+                [](const std::pair<Session, Responser> &a,
+                   const std::pair<Session, Responser> &&b) -> bool {
+                  return a.first.handle() < b.first.handle();
+                })
+                ->first.handle();
+      } else {
+        max_fd_number = -1;
+      }
+      max_fd_number = std::max(max_fd_number, s.handle());
+      if (prev_max_fd_number != max_fd_number) {
+        prev_max_fd_number = max_fd_number;
+      }
       memcpy(&read_fds, &original_read_fds, sizeof(original_read_fds));
       memcpy(&write_fds, &original_write_fds, sizeof(original_write_fds));
       // build fd_set for select
       int n_ready_fds;
-      TIMER_BEGIN("select()")
-      n_ready_fds =
-          select(max_fd_number + 1, &read_fds, &write_fds, nullptr, nullptr);
-      TIMER_END()
+      CHECK(n_ready_fds = select(max_fd_number + 1, &read_fds, &write_fds,
+                                 nullptr, nullptr));
       // The return value may be zero if the timeout expired
       // before any file descriptors became ready.
-      if (n_ready_fds < 1) {
-        THROW("select error: {}", get_errno_string());
-      }
       // loop through all
       // check for new connections
       if (FD_ISSET(s.handle(), &read_fds)) {
         try {
           Session sess = s.accept();
-          if (responsers.size() > (FD_SETSIZE - 1)) {
-            INFO("reach FD_SETSIZE, abort");
-            close(sess.handle());
-          } else {
+          if (responsers.size() < 1000) {
             responsers.emplace(sess, Responser(sess.handle()));
             FD_SET(sess.handle(), &original_read_fds);
             FD_SET(sess.handle(), &original_write_fds);
-            max_fd_number = std::max(max_fd_number, sess.handle());
+          } else {
+            INFO("max connection reached, abort!");
+            close(sess.handle());
           }
-        } catch (std::runtime_error &err) {
-          INFO("error: {}", err.what());
+        } catch (const std::exception &err) {
+          ERROR(err.what());
         }
       }
 
@@ -93,8 +101,7 @@ void server(std::string_view server_ip, uint16_t server_port,
             responsers[sess].do_write();
           }
           sess_iter++;
-        } catch (std::runtime_error &err) {
-          INFO("error: {}", err.what());
+        } catch (const std::exception &err) {
           close(sess.handle());
           FD_CLR(sess.handle(), &original_read_fds);
           FD_CLR(sess.handle(), &original_write_fds);
@@ -102,8 +109,8 @@ void server(std::string_view server_ip, uint16_t server_port,
         }
       }
 
-    } catch (std::runtime_error &err) {
-      INFO("error: {}", err.what());
+    } catch (const std::exception &err) {
+      ERROR(err.what());
       exit(-1);
     }
   }
@@ -122,19 +129,21 @@ int main(int argc, char **argv) {
       .default_value<int>(1)
       .scan<'i', int>();
 
+  signal(SIGPIPE, SIG_IGN);
+
   try {
     parser.parse_args(argc, argv);
-  } catch (std::runtime_error &err) {
-    fmt::println("{}\n", err.what());
-    fmt::print("{}", parser);
+  } catch (const std::runtime_error &err) {
+    fmt::print("{}\n\n", err.what());
+    fmt::print("{}\n", parser);
   }
 
   try {
     std::string server_ip = parser.get<std::string>("--server-ip");
     uint16_t server_port = parser.get<uint16_t>("--server-port");
     server(server_ip, server_port, parser.get<int>("--backlog-size"));
-  } catch (std::exception &e) {
-    fmt::println("{}", e.what());
+  } catch (const std::exception &e) {
+    ERROR(e.what());
     exit(-1);
   }
   return 0;

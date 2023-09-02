@@ -29,11 +29,11 @@ void set_addr(struct sockaddr_in &addr, std::string_view ip) {
     THROW("{} is not a valid network address for address family {}", ip,
           addr.sin_family == AF_INET ? "IPv4" : "IPv6");
   } else if (ret == -1) {
-    THROW("{}", get_errno_string());
+    THROW("{}", get_errno_string(errno));
   }
 }
 
-std::string get_errno_string() {
+std::string get_errno_string(int _errno) {
   // return strerror(errno);
   struct errno_info {
     std::string_view name;
@@ -175,10 +175,77 @@ std::string get_errno_string() {
       {133, {"EHWPOISON", "Memory page has hardware error"}},
       {95, {"ENOTSUP", "Operation not supported"}},
   };
-  int _errno = errno;
   if (map.find(_errno) == map.end()) {
     return fmt::format("Unkown errno: {}", _errno);
   }
   return fmt::format("{}({}): {}", map[_errno].name, _errno,
                      map[_errno].description);
+}
+
+std::string get_fd_status_flag_string(int fd) {
+#define PAIR(x)                                                                \
+  { x, #x }
+  static std::unordered_map<int, std::string_view> map{
+      PAIR(O_APPEND),  PAIR(O_ASYNC),    PAIR(O_DIRECT),
+      PAIR(O_NOATIME), PAIR(O_NONBLOCK),
+  };
+  std::vector<std::string_view> flags;
+  flags.reserve(map.size());
+  int status_flag = fcntl(fd, F_GETFL);
+  for (auto [v, n] : map) {
+    if (status_flag & v) {
+      flags.emplace_back(n);
+    }
+  }
+  if (flags.empty()) {
+    return "";
+  }
+  std::stringstream s;
+  auto i = flags.begin();
+  s << *i;
+  i++;
+  while (i != flags.end()) {
+    s << " | " << *i;
+    i++;
+  }
+  return s.str();
+}
+
+std::string escaped(std::string_view data) {
+  // from https://en.cppreference.com/w/cpp/language/escape
+  static std::unordered_map<char, std::string_view> escaped_char{
+      {'\'', "\\'"}, {'\"', "\\\""}, {'\?', "\\\?"}, {'\\', "\\\\"},
+      {'\a', "\\a"}, {'\b', "\\b"},  {'\f', "\\f"},  {'\n', "\\n"},
+      {'\r', "\\r"}, {'\t', "\\t"},  {'\v', "\\v"},
+  };
+  std::stringstream s;
+  s << 'b' << '\'';
+  for (uint8_t ch : data) {
+    // 判断 ch 是否是可见字符？
+    if (ch < 128) {
+      // ascii
+      if (escaped_char.find(ch) != escaped_char.end()) {
+        s << escaped_char[ch];
+      } else if (std::iscntrl(ch)) {
+        s << fmt::format("\\x{:02x}", ch);
+      } else {
+        s << ch;
+      }
+    } else {
+      // hex output
+      s << fmt::format("\\x{:02x}", ch);
+    }
+  }
+  s << '\'';
+  return s.str();
+}
+
+std::string octet_stream(std::string_view data) {
+  std::stringstream s;
+  s << 'b' << '\'';
+  for (uint8_t ch : data) {
+    s << fmt::format("\\x{:02x}", ch);
+  }
+  s << '\'';
+  return s.str();
 }

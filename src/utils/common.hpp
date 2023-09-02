@@ -1,5 +1,8 @@
 #pragma once
 #include <arpa/inet.h>
+#include <asm-generic/errno-base.h>
+#include <asm-generic/errno.h>
+#include <fcntl.h>
 #include <netinet/ip.h>
 #include <sys/socket.h>
 
@@ -8,9 +11,10 @@
 #include <filesystem>
 
 #include <argparse/argparse.hpp>
-#include <fmt/ostream.h>
+#include <spdlog/fmt/bundled/ostream.h>
 
 #include "exceptions.hpp"
+#include "spdlog/spdlog.h"
 
 std::ostream &operator<<(std::ostream &os, const struct sockaddr_in &addr);
 
@@ -26,9 +30,24 @@ struct fmt::formatter<argparse::ArgumentParser> : ostream_formatter {};
                                     fmt::format(__VA_ARGS__)));                \
   } while (0)
 
+#define TRACE(...)                                                             \
+  do {                                                                         \
+    spdlog::trace("{}:{} {}", __FILE__, __LINE__, fmt::format(__VA_ARGS__));   \
+  } while (0)
+
+#define DEBUG(...)                                                             \
+  do {                                                                         \
+    spdlog::debug(__VA_ARGS__);                                                \
+  } while (0)
+
 #define INFO(...)                                                              \
   do {                                                                         \
-    fmt::println("{}:{} {}", __FILE__, __LINE__, fmt::format(__VA_ARGS__));    \
+    spdlog::info(__VA_ARGS__);                                                 \
+  } while (0)
+
+#define ERROR(...)                                                             \
+  do {                                                                         \
+    spdlog::error("{}:{} {}", __FILE__, __LINE__, fmt::format(__VA_ARGS__));   \
   } while (0)
 
 class scope_timer {
@@ -39,12 +58,10 @@ public:
   ~scope_timer() {
     std::chrono::steady_clock::time_point exit_time_{
         std::chrono::steady_clock::now()};
-    fmt::println("[{}] run time: {:.3f}", scope_name_,
-                 static_cast<float>(
-                     std::chrono::duration_cast<std::chrono::microseconds>(
-                         exit_time_ - enter_time_)
-                         .count()) /
-                     1000.0f);
+    spdlog::info("{} cost: {} ms", scope_name_,
+                  std::chrono::duration_cast<std::chrono::milliseconds>(
+                      exit_time_ - enter_time_)
+                      .count());
   }
 
 private:
@@ -62,13 +79,15 @@ private:
   do {                                                                         \
     int ret = expr;                                                            \
     if (ret == -1) {                                                           \
-      THROW("error executing: \n{}\n{}", #expr, get_errno_string());           \
+      THROW("error executing: \n{}\n{}", #expr, get_errno_string(errno));      \
     }                                                                          \
   } while (false)
 
 std::string to_human_readable(size_t size);
 
-std::string get_errno_string();
+std::string get_errno_string(int _errno);
+
+std::string get_fd_status_flag_string(int fd);
 
 struct header {
   uint16_t size;
@@ -91,6 +110,22 @@ inline int stoi(std::string_view v) {
   return res;
 }
 
+inline void set_fd_status_flag(int fd, int flag) {
+  int status_flag = fcntl(fd, F_GETFL);
+  status_flag |= flag;
+  CHECK(fcntl(fd, F_SETFL, status_flag));
+}
+
+inline void unset_fd_status_flag(int fd, int flag) {
+  int status_flag = fcntl(fd, F_GETFL);
+  status_flag &= ~flag;
+  CHECK(fcntl(fd, F_SETFL, status_flag));
+}
+
+inline bool would_block(int _errno) {
+  return _errno == EAGAIN || _errno == EWOULDBLOCK;
+}
+
 void set_addr(struct sockaddr_in &addr, std::string_view ip);
 
 inline bool operator==(const struct sockaddr_in &a,
@@ -98,3 +133,7 @@ inline bool operator==(const struct sockaddr_in &a,
   return a.sin_family == b.sin_family && a.sin_port == b.sin_port &&
          a.sin_addr.s_addr == b.sin_addr.s_addr;
 }
+
+std::string escaped(std::string_view data);
+
+std::string octet_stream(std::string_view data);

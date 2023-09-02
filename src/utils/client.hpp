@@ -1,25 +1,27 @@
+#pragma once
 #include "common.hpp"
 #include "exceptions.hpp"
+#include "server.hpp"
 
-class Client {
+class Client : public Session {
+  using Base = Session;
+
 public:
+  Client() = default;
+
   Client(std::string_view remote_ip, uint16_t remote_port);
 
   Client(uint16_t remote_port);
 
-  int handle() const { return fd_; }
+  void connect();
+  const struct sockaddr_in &local_endpoint();
 
-  const struct sockaddr_in &remote_endpoint() const { return remote_endpoint_; }
-
-  const struct sockaddr_in &local_endpoint() const { return local_endpoint_; }
-
-  Client &connect();
+  friend struct std::hash<Client>;
 
 private:
   void create_socket();
-
-private:
-  int fd_{};
-  struct sockaddr_in remote_endpoint_;
-  struct sockaddr_in local_endpoint_;
 };
+
+namespace std {
+template <> struct hash<Client> : public hash<Session> {};
+}; // namespace std

@@ -1,6 +1,6 @@
+#include "utils/client.hpp"
 #include "utils/common.hpp"
 #include "utils/server.hpp"
-#include "utils/client.hpp"
 
 #include <assert.h>
 #include <errno.h>
@@ -12,7 +12,7 @@
 #include <vector>
 
 #include <argparse/argparse.hpp>
-#include <fmt/core.h>
+#include <spdlog/fmt/bundled/core.h>
 
 namespace fs = std::filesystem;
 namespace ch = std::chrono;
@@ -60,8 +60,8 @@ void client(std::string_view server_ip, uint16_t server_port, int linger_type,
     }
     INFO("enable SO_LINGER, l_onoff = {}, l_linger = {}", linger_opt.l_onoff,
          linger_opt.l_linger);
-    setsockopt(c.handle(), SOL_SOCKET, SO_LINGER, &linger_opt,
-               sizeof(linger_opt));
+    CHECK(setsockopt(c.handle(), SOL_SOCKET, SO_LINGER, &linger_opt,
+                     sizeof(linger_opt)));
   } else {
     INFO("disable SO_LINGER");
   }
@@ -91,21 +91,13 @@ void server(std::string_view server_ip, uint16_t server_port) {
   s.bind().listen(1);
   {
     int reuseaddr = 1;
-    int ret = setsockopt(s.handle(), SOL_SOCKET, SO_REUSEADDR, &reuseaddr,
-                         sizeof(reuseaddr));
-    if (ret == -1) {
-      THROW("failed to set SO_REUSEADDR option for server socket:\n{}",
-            get_errno_string());
-    }
+    CHECK(setsockopt(s.handle(), SOL_SOCKET, SO_REUSEADDR, &reuseaddr,
+                     sizeof(reuseaddr)));
   }
   {
     int reuseport = 1;
-    int ret = setsockopt(s.handle(), SOL_SOCKET, SO_REUSEPORT, &reuseport,
-                         sizeof(reuseport));
-    if (ret == -1) {
-      THROW("failed to set SO_REUSEPORT option for server socket:\n{}",
-            get_errno_string());
-    }
+    CHECK(setsockopt(s.handle(), SOL_SOCKET, SO_REUSEPORT, &reuseport,
+                     sizeof(reuseport)));
   }
 
   while (true) {
@@ -124,7 +116,7 @@ void server(std::string_view server_ip, uint16_t server_port) {
           read_size =
               read(sess.handle(), read_buffer.data(), read_buffer.size());
           if (read_size == -1) {
-            INFO("{}", get_errno_string());
+            INFO("{}", get_errno_string(errno));
             break;
           } else if (read_size == 0) {
             INFO("eof");
@@ -140,8 +132,8 @@ void server(std::string_view server_ip, uint16_t server_port) {
              get_md5(output_path));
         close(sess.handle());
       }
-    } catch (std::runtime_error &err) {
-      INFO(err.what());
+    } catch (const std::runtime_error &err) {
+      ERROR(err.what());
     }
   }
 }
@@ -170,14 +162,14 @@ int main(int argc, char **argv) {
 
   try {
     parser.parse_args(argc, argv);
-  } catch (std::runtime_error &err) {
+  } catch (const std::runtime_error &err) {
     fmt::print("{}\n\n", err.what());
     fmt::print("{}", parser);
   }
 
   try {
     if (parser.get<bool>("--client") && !parser.present("--file")) {
-      fmt::println("argument \"--file\" is required when run as client!\n");
+      fmt::print("argument \"--file\" is required when run as client!\n\n");
       fmt::print("{}", parser);
       exit(-1);
     }
@@ -192,8 +184,8 @@ int main(int argc, char **argv) {
     } else {
       server(server_ip, server_port);
     }
-  } catch (std::exception &e) {
-    fmt::println("{}", e.what());
+  } catch (const std::exception &e) {
+    ERROR(e.what());
     exit(-1);
   }
   return 0;

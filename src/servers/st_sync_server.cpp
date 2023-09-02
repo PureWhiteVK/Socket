@@ -1,6 +1,7 @@
-#include "utils/server.hpp"
 #include "sync_calculator/responser.hpp"
+#include "utils/server.hpp"
 
+#include <cerrno>
 #include <unistd.h>
 
 #include <chrono>
@@ -10,24 +11,15 @@ void server(std::string_view server_ip, uint16_t server_port,
             int backlog_size) {
   Server s{server_ip, server_port};
   s.bind().listen(backlog_size);
-  fmt::println("start server at: {}", s.local_endpoint());
   {
     int reuseaddr = 1;
-    int ret = setsockopt(s.handle(), SOL_SOCKET, SO_REUSEADDR, &reuseaddr,
-                         sizeof(reuseaddr));
-    if (ret == -1) {
-      THROW("failed to set SO_REUSEADDR option for server socket:\n{}",
-            get_errno_string());
-    }
+    CHECK(setsockopt(s.handle(), SOL_SOCKET, SO_REUSEADDR, &reuseaddr,
+                     sizeof(reuseaddr)));
   }
   {
     int reuseport = 1;
-    int ret = setsockopt(s.handle(), SOL_SOCKET, SO_REUSEPORT, &reuseport,
-                         sizeof(reuseport));
-    if (ret == -1) {
-      THROW("failed to set SO_REUSEPORT option for server socket:\n{}",
-            get_errno_string());
-    }
+    CHECK(setsockopt(s.handle(), SOL_SOCKET, SO_REUSEPORT, &reuseport,
+                     sizeof(reuseport)));
   }
 
   while (true) {
@@ -36,18 +28,17 @@ void server(std::string_view server_ip, uint16_t server_port,
       // handle connection
       try {
         Responser resp{sess.handle()};
-        fmt::println("accept connection: {}", sess.remote_endpoint());
         while (true) {
           // read from client
           resp.do_read();
           resp.do_write();
         }
-      } catch (std::runtime_error &err) {
-        fmt::println("error: {}", err.what());
+      } catch (const std::runtime_error &err) {
+        ERROR(err.what());
         close(sess.handle());
       }
-    } catch (std::runtime_error &err) {
-      INFO("error: {}", err.what());
+    } catch (const std::runtime_error &err) {
+      ERROR(err.what());
     }
   }
 }
@@ -67,8 +58,8 @@ int main(int argc, char **argv) {
 
   try {
     parser.parse_args(argc, argv);
-  } catch (std::runtime_error &err) {
-    fmt::println("{}\n", err.what());
+  } catch (const std::runtime_error &err) {
+    fmt::print("{}\n\n", err.what());
     fmt::print("{}", parser);
   }
 
@@ -76,8 +67,8 @@ int main(int argc, char **argv) {
     std::string server_ip = parser.get<std::string>("--server-ip");
     uint16_t server_port = parser.get<uint16_t>("--server-port");
     server(server_ip, server_port, parser.get<int>("--backlog-size"));
-  } catch (std::exception &e) {
-    fmt::println("{}", e.what());
+  } catch (const std::exception &e) {
+    ERROR(e.what());
     exit(-1);
   }
   return 0;

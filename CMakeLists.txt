@@ -10,14 +10,14 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 include(FetchContent)
 
 FetchContent_Declare(
-  fmt
-  GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-  GIT_TAG        10.1.0
+  spdlog
+  GIT_REPOSITORY https://github.com/gabime/spdlog.git
+  GIT_TAG        v1.12.0
   GIT_SHALLOW    TRUE
   GIT_PROGRESS   TRUE
 )
+FetchContent_MakeAvailable(spdlog)
 
-FetchContent_MakeAvailable(fmt)
 
 FetchContent_Declare(
   argparse
@@ -26,7 +26,6 @@ FetchContent_Declare(
   GIT_SHALLOW    TRUE
   GIT_PROGRESS   TRUE
 )
-
 set(ARGPARSE_BUILD_SAMPLES FALSE)
 set(ARGPARSE_BUILD_TESTS FALSE)
 FetchContent_MakeAvailable(argparse)
